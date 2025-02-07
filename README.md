@@ -1,2 +1,82 @@
 # Hubert_ru_common_voice
 for train ru voice models
+
+Для использования набора данных common_voice/ru с моделями Wav2Vec 2.0 или HuBERT, вам нужно выполнить несколько шагов по подготовке данных и настройке модели. Вот общий процесс:
+
+Шаг 1: Установка необходимых библиотек
+Убедитесь, что у вас установлены необходимые библиотеки. Вы можете установить их с помощью pip:
+
+
+pip install tensorflow tensorflow-datasets transformers datasets
+Шаг 2: Загрузка и подготовка данных
+Загрузите набор данных common_voice/ru и подготовьте его для использования с моделями:
+
+
+import tensorflow_datasets as tfds
+from datasets import load_dataset, Dataset
+
+# Загрузка набора данных
+dataset = load_dataset("common_voice", "ru", split="train")
+
+# Просмотр структуры данных
+print(dataset)
+Шаг 3: Предобработка данных
+Предобработка данных включает в себя извлечение аудио и текстовых транскрипций, а также их преобразование в формат, пригодный для моделей Wav2Vec 2.0 или HuBERT.
+
+
+import torch
+from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC
+
+# Загрузка процессора и модели
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-large-xlsr-53")
+model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-large-xlsr-53")
+
+# Функция для предобработки данных
+def speech_file_to_array_fn(batch):
+    speech_array, sampling_rate = torchaudio.load(batch["path"])
+    batch["speech"] = speech_array.squeeze().numpy()
+    batch["sampling_rate"] = sampling_rate
+    batch["target"] = batch["sentence"]
+    return batch
+
+# Применение предобработки
+dataset = dataset.map(speech_file_to_array_fn)
+Шаг 4: Обучение модели
+Теперь вы можете использовать предобработанные данные для обучения модели. Вот пример кода для обучения модели Wav2Vec 2.0:
+
+
+from transformers import TrainingArguments, Trainer
+
+# Определение аргументов для обучения
+training_args = TrainingArguments(
+    output_dir="./wav2vec2-large-xlsr-53-ru",
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=8,
+    learning_rate=3e-4,
+    warmup_steps=500,
+    max_steps=4000,
+    save_steps=400,
+    eval_steps=400,
+    logging_steps=200,
+    evaluation_strategy="steps",
+    save_total_limit=2,
+)
+
+# Определение тренера
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset["train"],
+    eval_dataset=dataset["validation"],
+    tokenizer=processor.feature_extractor,
+    data_collator=data_collator,
+)
+
+# Запуск обучения
+trainer.train()
+Примечания:
+Процессор и модель: В примере используется модель wav2vec2-large-xlsr-53, которая поддерживает множество языков, включая русский. Вы можете выбрать другую модель, если она лучше подходит для вашей задачи.
+
+Предобработка: Убедитесь, что аудиофайлы и транскрипции правильно предобработаны и соответствуют формату, требуемому моделью.
+
+Обучение: Параметры обучения можно настроить в зависимости от ваших ресурсов и требований к модели.
